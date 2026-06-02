@@ -1,0 +1,13 @@
+# Binários
+/bin/
+core-auth-org
+
+# Ambiente
+.env
+
+# Go workspace
+go.work
+go.work.sum
+
+# OS
+.DS_Store
