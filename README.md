@@ -1,55 +1,101 @@
 # Enterprise Core Backend
 
-High-performance foundational backend for B2B enterprise applications, built with Go and PostgreSQL.
+A reusable backend foundation for business systems that need authentication, users, organizations, permissions, and audit logs.
 
-This project is designed as a modular monolith with strict domain boundaries, type-safe SQL, and minimal framework overhead. Its goal is to provide a solid, reusable core for systems such as ERP, internal admin platforms, business management software, and other organization-centric applications.
+This project is meant to be the starting point for software such as ERP systems, internal admin panels, inventory systems, clinic systems, barbershop systems, restaurant back offices, and other business applications where multiple users need controlled access to the same system.
 
-## Overview
+It is **not** the full business system itself. It is the core layer that solves the repeated enterprise problems first, so new projects can be built faster and with less structural mess.
 
-The backend is structured around bounded contexts instead of generic technical layers. This keeps responsibilities clear, reduces coupling between modules, and makes long-term maintenance easier in growing codebases.
+## What this backend is for
 
-The current focus is the enterprise core layer: authentication, identity, organization management, permissions, and auditability. Business-specific modules should be added later on top of this foundation, not mixed into it from the start.
+Use this backend when the project needs one or more of these:
 
-## Core Principles
+- user accounts
+- login and session handling
+- password reset flow
+- organizations / companies
+- units, branches, or locations
+- roles and permissions
+- internal admin access control
+- audit trail for important actions
+- a reusable base for future business modules
 
-- **Domain-first design**  
-  Business rules belong to the domain and service layers, not to HTTP handlers or database adapters.
+In simple terms, this backend helps when the system is not just a public website, but a real application with users, access rules, and company structure.
 
-- **Modular monolith**  
-  Features are separated into modules with clear boundaries, while remaining in a single deployable application for simpler operations and development flow.
+## Where this backend can be used
 
-- **Type-safe SQL**  
-  Queries are written explicitly and mapped to Go types through `sqlc`, avoiding heavy ORM abstractions and reducing runtime surprises.
+This backend is a good fit for projects such as:
 
-- **Minimal overhead**  
-  The project favors lean, understandable building blocks over excessive abstraction, reflection-heavy tooling, or unnecessary framework complexity.
+- ERP-like systems
+- stock and inventory systems
+- clinic management systems
+- barbershop management systems
+- pizzeria or restaurant back-office systems
+- internal dashboards for companies
+- SaaS admin backends
+- multi-user business tools
+- management systems for small and medium businesses
 
-- **Operational clarity**  
-  Logging, migrations, configuration, and database access are treated as first-class parts of the system, not afterthoughts.
+The main idea is simple: if the project needs people to log in, belong to a company, have different permissions, and leave a history of important actions, this backend is useful.
 
-## Tech Stack
+## Where this backend should not be used alone
 
-- **Language:** Go 1.22+
-- **Database:** PostgreSQL 15+
-- **Database Driver / Pool:** `pgx/v5`
-- **SQL Code Generation:** `sqlc`
-- **HTTP Router:** `go-chi/chi/v5`
-- **Migrations:** `golang-migrate`
-- **Logging:** `log/slog`
-- **Authentication:** JWT + password hashing
-- **Architecture Style:** Modular Monolith
+This backend is **not enough by itself** for:
 
-## Current Modules
+- landing pages
+- blogs
+- portfolio websites
+- brochure websites
+- simple APIs without auth or business access rules
+- highly specialized systems that already depend on a very different domain model
 
-| Module | Responsibility | Status |
-|--------|----------------|--------|
-| `auth` | Authentication, session flow, token lifecycle | In progress |
-| `users` | User identity, registration, account lifecycle | In progress |
-| `org` | Organizations, units, and tenant-related structure | Planned / WIP |
-| `rbac` | Roles and permissions | Planned / WIP |
-| `audit` | Security-sensitive event tracking and audit trails | Planned / WIP |
+It also does not yet include business modules such as orders, products, scheduling, billing, finance, or reports. Those should be built on top of this foundation.
 
-## Project Structure
+## What problem it solves
+
+In many business projects, the same base work gets rebuilt over and over:
+
+- login
+- user management
+- company structure
+- permission checks
+- session flow
+- audit logging
+- account lifecycle rules
+
+This backend exists to stop rebuilding that same core every time.
+
+Instead of starting each project from zero, the goal is to start with a clean and reliable base, then add only the business-specific modules needed for the project.
+
+## What you gain by using it
+
+Using this backend should help with:
+
+- faster project starts
+- cleaner project structure
+- better consistency across different systems
+- less repeated code
+- easier long-term maintenance
+- safer access control
+- easier scaling of future modules
+- fewer architecture mistakes early in the project
+
+It is especially useful for freelancers, agencies, and product builders who create multiple business systems and do not want to redesign the same backend foundation every time.
+
+## What is included
+
+The current goal of this repository is to provide the enterprise core, especially around:
+
+- authentication
+- users
+- organizations
+- roles and permissions
+- audit logs
+- shared platform infrastructure
+
+That means this repository focuses on the system backbone, not on domain-specific business logic.
+
+## Project structure
 
 ```text
 .
@@ -67,99 +113,50 @@ The current focus is the enterprise core layer: authentication, identity, organi
 └── sqlc.yaml                     # sqlc configuration
 ```
 
-## Design Goals
+## Example use cases
 
-This project is being built as a reusable enterprise core, not as a one-off backend. The intent is to keep the foundation stable, small, explicit, and adaptable across different business systems.
+### Example 1: Clinic system
 
-Key goals include:
+A clinic system may need receptionists, admins, and managers with different permissions. It may also need branches, protected patient-related actions, and a history of who changed what. This backend solves the base layer for that kind of structure.
 
-- strong module boundaries
-- predictable dependency flow
-- explicit SQL and schema control
-- low operational complexity
-- long-term maintainability
-- easy extension for future business modules
+### Example 2: Inventory system
 
-## What This Project Is Not
+An inventory system may need multiple staff users, branch-level access, controlled admin actions, and an audit trail for sensitive changes. This backend gives the access and organization layer before stock rules are added.
 
-To keep the core clean, this repository does not aim to include business-specific features such as inventory, orders, scheduling, billing, or reporting at this stage. Those concerns belong in separate modules built on top of this base.
+### Example 3: Restaurant back office
 
-It also avoids generic repository patterns, heavy ORMs, and unnecessary abstractions that make code harder to understand and reuse over time.
+A restaurant or pizzeria system may need managers, attendants, and owners with different access levels across one or more units. This backend helps organize users, permissions, and company structure before adding menus, orders, and delivery logic.
 
-## Getting Started
+## Development approach
 
-### Prerequisites
+This project should stay small in scope and strong in structure.
 
-Before running the project, make sure the local environment includes:
+The idea is:
 
-- Go 1.22+
-- PostgreSQL 15+
-- `sqlc`
-- `golang-migrate`
-- a PostgreSQL database created for local development
+1. build the enterprise core well
+2. avoid unnecessary abstractions
+3. keep module boundaries clear
+4. add business modules later without breaking the foundation
 
-### Environment Variables
+This helps the backend stay reusable instead of turning into a one-project code dump.
 
-At minimum, the application should be configured through environment variables for:
+## Tech stack
 
-- application environment
-- HTTP server port
-- PostgreSQL connection string
-- JWT secret
-- token expiration settings
-- log level
+- **Language:** Go 1.22+
+- **Database:** PostgreSQL 15+
+- **Database Driver / Pool:** `pgx/v5`
+- **SQL Code Generation:** `sqlc`
+- **HTTP Router:** `go-chi/chi/v5`
+- **Migrations:** `golang-migrate`
+- **Logging:** `log/slog`
+- **Authentication:** JWT + password hashing
 
-A common approach is to use a local `.env` file during development and environment-specific configuration in production.
+## Current status
 
-### Initial Setup Flow
+This repository is still in the foundation stage. The goal right now is to make the core stable, reusable, and clear before expanding into more business-specific modules.
 
-A clean setup flow should follow this order:
+## Long-term goal
 
-1. create the PostgreSQL database
-2. configure environment variables
-3. run database migrations
-4. generate SQL code with `sqlc`
-5. start the API server
+The long-term goal is to keep this repository as a professional backend base that can be reused across many business systems.
 
-This order keeps schema, generated code, and runtime configuration aligned from the beginning.
-
-## Development Flow
-
-The recommended workflow for this repository is module-first, not endpoint-first.
-
-A typical development sequence should be:
-
-1. define the module boundary
-2. model the domain rules
-3. create or update migrations
-4. write the SQL queries
-5. generate typed code with `sqlc`
-6. implement repositories
-7. implement services / use cases
-8. expose HTTP handlers
-9. add tests for critical flows
-10. document the module behavior
-
-This reduces rework and helps keep domain logic from leaking into transport or persistence layers.
-
-## Recommended Standards
-
-To keep the codebase clean over time, each module should follow a small and explicit internal structure. The exact naming can vary, but the responsibility split should remain stable:
-
-- `domain` for entities, rules, and business errors
-- `service` for use cases and orchestration
-- `repository` for PostgreSQL access
-- `transport/http` for request and response handling
-- `dto` for input and output contracts when needed
-
-The goal is not to create ceremony, but to preserve clarity as the system grows.
-
-## Development Status
-
-This repository is currently in the foundational stage. The architecture, module boundaries, and infrastructure setup are being defined first so that later features can be added without creating structural debt.
-
-## Long-Term Vision
-
-The long-term goal is to turn this repository into a professional reusable backend core for enterprise-grade systems, especially where authentication, organizational structure, access control, and auditability need to be reliable from the beginning.
-
-Future business modules should plug into this base instead of re-implementing common enterprise concerns in every new project.
+Instead of creating authentication, organization, permission, and audit logic from scratch for every new project, future systems should start here and build their own business modules on top.
