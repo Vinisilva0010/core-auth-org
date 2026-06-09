@@ -22,6 +22,14 @@ import (
 	usersSvc "core-auth-org/internal/modules/users/service"
 	usersTransport "core-auth-org/internal/modules/users/transport"
 
+	orgRepo "core-auth-org/internal/modules/org/repository"
+	orgSvc "core-auth-org/internal/modules/org/service"
+	orgTransport "core-auth-org/internal/modules/org/transport"
+
+	rbacRepo "core-auth-org/internal/modules/rbac/repository"
+	rbacSvc "core-auth-org/internal/modules/rbac/service"
+	rbacTransport "core-auth-org/internal/modules/rbac/transport"
+
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,12 +58,18 @@ func main() {
 	// === Injeção de Dependências ===
 	userRepoInstance := usersRepo.New(dbPool)
 	authRepoInstance := authRepo.New(dbPool)
+	orgRepoInstance := orgRepo.New(dbPool)
+	rbacRepoInstance := rbacRepo.New(dbPool)
 
 	userSvcInstance := usersSvc.NewUserService(userRepoInstance)
 	authSvcInstance := authSvc.NewAuthService(authRepoInstance, userRepoInstance, cfg.JWTSecret)
+	orgSvcInstance := orgSvc.NewOrgService(orgRepoInstance)
+	rbacSvcInstance := rbacSvc.NewRBACService(rbacRepoInstance)
 
 	userHandler := usersTransport.NewUserHandler(userSvcInstance)
 	authHandler := authTransport.NewAuthHandler(authSvcInstance)
+	orgHandler := orgTransport.NewOrgHandler(orgSvcInstance)
+	rbacHandler := rbacTransport.NewRBACHandler(rbacSvcInstance)
 
 	// Inicializa o Router
 	r := chi.NewRouter()
@@ -91,6 +105,11 @@ func main() {
 					"user_id": userID.String(),
 				})
 			})
+
+			r.Post("/organizations", orgHandler.Create)
+			
+			// Rotas de RBAC (Fase 4)
+			r.Post("/roles", rbacHandler.CreateRole)
 		})
 	})
 

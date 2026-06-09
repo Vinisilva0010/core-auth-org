@@ -44,3 +44,47 @@ sql:
             go_type:
               import: time
               type: Time
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/modules/org/repository/queries.sql"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/modules/org/repository"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        overrides:
+          - db_type: uuid
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time
+          - db_type: timestamp
+            go_type:
+              import: time
+              type: Time
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/modules/rbac/repository/queries.sql"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/modules/rbac/repository"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        overrides:
+          - db_type: uuid
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time
+          - db_type: timestamp
+            go_type:
+              import: time
+              type: Time

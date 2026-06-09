@@ -5,9 +5,45 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Organization struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type OrganizationMember struct {
+	OrganizationID uuid.UUID
+	UserID         uuid.UUID
+	JoinedAt       time.Time
+	RoleID         pgtype.UUID
+}
+
+type Permission struct {
+	ID          uuid.UUID
+	Name        string
+	Description pgtype.Text
+}
+
+type Role struct {
+	ID             uuid.UUID
+	OrganizationID uuid.UUID
+	Name           string
+	Description    pgtype.Text
+	CreatedAt      time.Time
+}
+
+type RolePermission struct {
+	RoleID       uuid.UUID
+	PermissionID uuid.UUID
+}
 
 type Session struct {
 	ID           uuid.UUID
