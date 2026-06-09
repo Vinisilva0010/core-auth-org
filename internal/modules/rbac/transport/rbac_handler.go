@@ -39,3 +39,24 @@ func (h *RBACHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 
 	server.JSON(w, http.StatusCreated, role)
 }
+
+type assignRoleRequest struct {
+	OrganizationID uuid.UUID `json:"organization_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	RoleID         uuid.UUID `json:"role_id"`
+}
+
+func (h *RBACHandler) AssignRole(w http.ResponseWriter, r *http.Request) {
+	var req assignRoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		server.Error(w, http.StatusBadRequest, "payload inválido")
+		return
+	}
+
+	if err := h.rbacService.AssignRole(r.Context(), req.OrganizationID, req.UserID, req.RoleID); err != nil {
+		server.Error(w, http.StatusInternalServerError, "falha ao atribuir cargo")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

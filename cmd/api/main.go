@@ -14,13 +14,13 @@ import (
 	customMiddleware "core-auth-org/internal/platform/middleware"
 	"core-auth-org/internal/platform/server"
 
+	auditRepo "core-auth-org/internal/modules/audit/repository"
+	auditSvc "core-auth-org/internal/modules/audit/service"
+	auditTransport "core-auth-org/internal/modules/audit/transport"
+
 	authRepo "core-auth-org/internal/modules/auth/repository"
 	authSvc "core-auth-org/internal/modules/auth/service"
 	authTransport "core-auth-org/internal/modules/auth/transport"
-
-	usersRepo "core-auth-org/internal/modules/users/repository"
-	usersSvc "core-auth-org/internal/modules/users/service"
-	usersTransport "core-auth-org/internal/modules/users/transport"
 
 	orgRepo "core-auth-org/internal/modules/org/repository"
 	orgSvc "core-auth-org/internal/modules/org/service"
@@ -29,6 +29,10 @@ import (
 	rbacRepo "core-auth-org/internal/modules/rbac/repository"
 	rbacSvc "core-auth-org/internal/modules/rbac/service"
 	rbacTransport "core-auth-org/internal/modules/rbac/transport"
+
+	usersRepo "core-auth-org/internal/modules/users/repository"
+	usersSvc "core-auth-org/internal/modules/users/service"
+	usersTransport "core-auth-org/internal/modules/users/transport"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -41,7 +45,6 @@ func main() {
 
 	ctx := context.Background()
 
-	// Inicializa conexão com o banco
 	dbPool, err := pgxpool.New(ctx, cfg.DBURL)
 	if err != nil {
 		slog.Error("falha ao criar pool de conexões", "erro", err)
@@ -55,46 +58,42 @@ func main() {
 	}
 	slog.Info("banco de dados conectado com sucesso")
 
-	// === Injeção de Dependências ===
 	userRepoInstance := usersRepo.New(dbPool)
 	authRepoInstance := authRepo.New(dbPool)
 	orgRepoInstance := orgRepo.New(dbPool)
 	rbacRepoInstance := rbacRepo.New(dbPool)
+	auditRepoInstance := auditRepo.New(dbPool)
 
 	userSvcInstance := usersSvc.NewUserService(userRepoInstance)
 	authSvcInstance := authSvc.NewAuthService(authRepoInstance, userRepoInstance, cfg.JWTSecret)
 	orgSvcInstance := orgSvc.NewOrgService(orgRepoInstance)
 	rbacSvcInstance := rbacSvc.NewRBACService(rbacRepoInstance)
+	auditSvcInstance := auditSvc.NewAuditService(auditRepoInstance)
 
 	userHandler := usersTransport.NewUserHandler(userSvcInstance)
 	authHandler := authTransport.NewAuthHandler(authSvcInstance)
 	orgHandler := orgTransport.NewOrgHandler(orgSvcInstance)
 	rbacHandler := rbacTransport.NewRBACHandler(rbacSvcInstance)
+	auditHandler := auditTransport.NewAuditHandler(auditSvcInstance)
 
-	// Inicializa o Router
 	r := chi.NewRouter()
 
-	// Middlewares globais do Chi
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.Timeout(60 * time.Second))
 
-	// Rota de Healthcheck
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		server.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	// === Rotas da API ===
 	r.Route("/api/v1", func(r chi.Router) {
-		// Rotas Públicas
 		r.Post("/users", userHandler.Register)
 		r.Post("/auth/login", authHandler.Login)
 		r.Post("/auth/refresh", authHandler.Refresh)
 		r.Post("/auth/logout", authHandler.Logout)
 
-		// Rotas Privadas (Exigem Access Token)
 		r.Group(func(r chi.Router) {
 			r.Use(customMiddleware.RequireAuth(cfg.JWTSecret))
 
@@ -108,12 +107,13 @@ func main() {
 
 			r.Post("/organizations", orgHandler.Create)
 			
-			// Rotas de RBAC (Fase 4)
 			r.Post("/roles", rbacHandler.CreateRole)
+			r.Post("/roles/assign", rbacHandler.AssignRole)
+
+			r.Get("/audit", auditHandler.ListLogs)
 		})
 	})
 
-	// Configuração do Servidor HTTP
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
@@ -122,7 +122,6 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Graceful Shutdown
 	go func() {
 		slog.Info("servidor rodando", "porta", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

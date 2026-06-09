@@ -88,3 +88,25 @@ sql:
             go_type:
               import: time
               type: Time
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/modules/audit/repository/queries.sql"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/modules/audit/repository"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        overrides:
+          - db_type: uuid
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time
+          - db_type: timestamp
+            go_type:
+              import: time
+              type: Time

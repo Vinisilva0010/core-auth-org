@@ -42,3 +42,11 @@ func (s *RBACService) CreateRole(ctx context.Context, orgID uuid.UUID, name, des
 		CreatedAt:      dbRole.CreatedAt,
 	}, nil
 }
+
+func (s *RBACService) AssignRole(ctx context.Context, orgID, userID, roleID uuid.UUID) error {
+	return s.repo.AssignRoleToMember(ctx, repository.AssignRoleToMemberParams{
+		RoleID:         pgtype.UUID{Bytes: roleID, Valid: true},
+		OrganizationID: orgID,
+		UserID:         userID,
+	})
+}

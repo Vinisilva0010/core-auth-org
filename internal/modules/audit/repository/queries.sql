@@ -1,9 +1,10 @@
--- name: GetSessionByRefreshToken :one
-SELECT id, user_id, refresh_token, user_agent, ip_address, is_revoked, expires_at, created_at
-FROM sessions
-WHERE refresh_token = $1 LIMIT 1;
+-- name: CreateAuditLog :one
+INSERT INTO audit_logs (organization_id, user_id, action, resource, details, ip_address)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, organization_id, user_id, action, resource, details, ip_address, created_at;
 
--- name: RevokeSession :exec
-UPDATE sessions
-SET is_revoked = TRUE
-WHERE refresh_token = $1;
+-- name: ListAuditLogsByOrg :many
+SELECT id, organization_id, user_id, action, resource, details, ip_address, created_at
+FROM audit_logs
+WHERE organization_id = $1
+ORDER BY created_at DESC;
