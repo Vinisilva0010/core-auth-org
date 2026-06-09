@@ -93,6 +93,8 @@ func main() {
 		r.Post("/auth/login", authHandler.Login)
 		r.Post("/auth/refresh", authHandler.Refresh)
 		r.Post("/auth/logout", authHandler.Logout)
+		r.Post("/auth/forgot-password", authHandler.ForgotPassword)
+		r.Post("/auth/reset-password", authHandler.ResetPassword)
 
 		r.Group(func(r chi.Router) {
 			r.Use(customMiddleware.RequireAuth(cfg.JWTSecret))
@@ -106,9 +108,13 @@ func main() {
 			})
 
 			r.Post("/organizations", orgHandler.Create)
+			r.Post("/organizations/units", orgHandler.CreateUnit)
+			r.Get("/organizations/units", orgHandler.ListUnits)
 			
 			r.Post("/roles", rbacHandler.CreateRole)
 			r.Post("/roles/assign", rbacHandler.AssignRole)
+			r.Post("/permissions", rbacHandler.CreatePermission)
+			r.Post("/roles/permissions", rbacHandler.AssignPermission)
 
 			r.Get("/audit", auditHandler.ListLogs)
 		})

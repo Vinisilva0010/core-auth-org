@@ -50,6 +50,29 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 	return i, err
 }
 
+const createOrganizationUnit = `-- name: CreateOrganizationUnit :one
+INSERT INTO organization_units (organization_id, name)
+VALUES ($1, $2)
+RETURNING id, organization_id, name, created_at
+`
+
+type CreateOrganizationUnitParams struct {
+	OrganizationID uuid.UUID
+	Name           string
+}
+
+func (q *Queries) CreateOrganizationUnit(ctx context.Context, arg CreateOrganizationUnitParams) (OrganizationUnit, error) {
+	row := q.db.QueryRow(ctx, createOrganizationUnit, arg.OrganizationID, arg.Name)
+	var i OrganizationUnit
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, name, slug, created_at, updated_at
 FROM organizations
@@ -67,4 +90,36 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organi
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listOrganizationUnits = `-- name: ListOrganizationUnits :many
+SELECT id, organization_id, name, created_at
+FROM organization_units
+WHERE organization_id = $1
+ORDER BY name
+`
+
+func (q *Queries) ListOrganizationUnits(ctx context.Context, organizationID uuid.UUID) ([]OrganizationUnit, error) {
+	rows, err := q.db.Query(ctx, listOrganizationUnits, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationUnit
+	for rows.Next() {
+		var i OrganizationUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

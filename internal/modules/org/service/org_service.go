@@ -18,38 +18,62 @@ func NewOrgService(repo repository.Querier) *OrgService {
 	return &OrgService{repo: repo}
 }
 
-func (s *OrgService) CreateOrganization(ctx context.Context, name string, creatorID uuid.UUID) (*domain.Organization, error) {
+func (s *OrgService) Create(ctx context.Context, name string) (*domain.Organization, error) {
 	name = strings.TrimSpace(name)
-	if len(name) < 3 {
-		return nil, domain.ErrInvalidOrgName
+	if name == "" {
+		return nil, domain.ErrInvalidOrgData
 	}
 
-	// Gera um slug simples (ex: "Zanvexis Corp" -> "zanvexis-corp")
-	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-
-	// 1. Cria a organização no banco
 	dbOrg, err := s.repo.CreateOrganization(ctx, repository.CreateOrganizationParams{
 		Name: name,
-		Slug: slug,
 	})
 	if err != nil {
 		return nil, domain.ErrOrgCreation
 	}
 
-	// 2. Adiciona o usuário criador como membro da organização
-	err = s.repo.AddUserToOrganization(ctx, repository.AddUserToOrganizationParams{
-		OrganizationID: dbOrg.ID,
-		UserID:         creatorID,
+	return &domain.Organization{
+		ID:        dbOrg.ID,
+		Name:      dbOrg.Name,
+		CreatedAt: dbOrg.CreatedAt,
+	}, nil
+}
+
+func (s *OrgService) CreateUnit(ctx context.Context, orgID uuid.UUID, name string) (*domain.OrganizationUnit, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, domain.ErrInvalidOrgData
+	}
+
+	dbUnit, err := s.repo.CreateOrganizationUnit(ctx, repository.CreateOrganizationUnitParams{
+		OrganizationID: orgID,
+		Name:           name,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &domain.Organization{
-		ID:        dbOrg.ID,
-		Name:      dbOrg.Name,
-		Slug:      dbOrg.Slug,
-		CreatedAt: dbOrg.CreatedAt, // Correção: A propriedade já é nativa do tipo time.Time
-		UpdatedAt: dbOrg.UpdatedAt, // Correção: A propriedade já é nativa do tipo time.Time
+	return &domain.OrganizationUnit{
+		ID:             dbUnit.ID,
+		OrganizationID: dbUnit.OrganizationID,
+		Name:           dbUnit.Name,
+		CreatedAt:      dbUnit.CreatedAt,
 	}, nil
+}
+
+func (s *OrgService) ListUnits(ctx context.Context, orgID uuid.UUID) ([]domain.OrganizationUnit, error) {
+	dbUnits, err := s.repo.ListOrganizationUnits(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+
+	var units []domain.OrganizationUnit
+	for _, u := range dbUnits {
+		units = append(units, domain.OrganizationUnit{
+			ID:             u.ID,
+			OrganizationID: u.OrganizationID,
+			Name:           u.Name,
+			CreatedAt:      u.CreatedAt,
+		})
+	}
+	return units, nil
 }

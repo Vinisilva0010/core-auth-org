@@ -37,6 +37,22 @@ type OrganizationMember struct {
 	RoleID         pgtype.UUID
 }
 
+type OrganizationUnit struct {
+	ID             uuid.UUID
+	OrganizationID uuid.UUID
+	Name           string
+	CreatedAt      time.Time
+}
+
+type PasswordReset struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Token     string
+	Used      bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
 type Permission struct {
 	ID          uuid.UUID
 	Name        string

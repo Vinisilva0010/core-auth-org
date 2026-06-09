@@ -11,10 +11,13 @@ import (
 )
 
 type Querier interface {
-	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
-	GetSession(ctx context.Context, id uuid.UUID) (Session, error)
-	GetSessionByRefreshToken(ctx context.Context, refreshToken string) (Session, error)
-	RevokeSession(ctx context.Context, refreshToken string) error
+	CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) (PasswordReset, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
+	GetPasswordResetByToken(ctx context.Context, token string) (PasswordReset, error)
+	GetSessionByToken(ctx context.Context, refreshToken string) (GetSessionByTokenRow, error)
+	MarkPasswordResetUsed(ctx context.Context, id uuid.UUID) error
+	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error
+	RevokeSession(ctx context.Context, id uuid.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

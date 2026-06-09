@@ -12,6 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assignPermissionToRole = `-- name: AssignPermissionToRole :exec
+INSERT INTO role_permissions (role_id, permission_id)
+VALUES ($1, $2)
+`
+
+type AssignPermissionToRoleParams struct {
+	RoleID       uuid.UUID
+	PermissionID uuid.UUID
+}
+
+func (q *Queries) AssignPermissionToRole(ctx context.Context, arg AssignPermissionToRoleParams) error {
+	_, err := q.db.Exec(ctx, assignPermissionToRole, arg.RoleID, arg.PermissionID)
+	return err
+}
+
 const assignRoleToMember = `-- name: AssignRoleToMember :exec
 UPDATE organization_members
 SET role_id = $1
@@ -27,6 +42,24 @@ type AssignRoleToMemberParams struct {
 func (q *Queries) AssignRoleToMember(ctx context.Context, arg AssignRoleToMemberParams) error {
 	_, err := q.db.Exec(ctx, assignRoleToMember, arg.RoleID, arg.OrganizationID, arg.UserID)
 	return err
+}
+
+const createPermission = `-- name: CreatePermission :one
+INSERT INTO permissions (name)
+VALUES ($1)
+RETURNING id, name
+`
+
+type CreatePermissionRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) CreatePermission(ctx context.Context, name string) (CreatePermissionRow, error) {
+	row := q.db.QueryRow(ctx, createPermission, name)
+	var i CreatePermissionRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
 }
 
 const createRole = `-- name: CreateRole :one

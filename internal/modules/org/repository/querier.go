@@ -13,7 +13,9 @@ import (
 type Querier interface {
 	AddUserToOrganization(ctx context.Context, arg AddUserToOrganizationParams) error
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error)
+	CreateOrganizationUnit(ctx context.Context, arg CreateOrganizationUnitParams) (OrganizationUnit, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
+	ListOrganizationUnits(ctx context.Context, organizationID uuid.UUID) ([]OrganizationUnit, error)
 }
 
 var _ Querier = (*Queries)(nil)

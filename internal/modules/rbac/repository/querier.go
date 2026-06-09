@@ -9,7 +9,9 @@ import (
 )
 
 type Querier interface {
+	AssignPermissionToRole(ctx context.Context, arg AssignPermissionToRoleParams) error
 	AssignRoleToMember(ctx context.Context, arg AssignRoleToMemberParams) error
+	CreatePermission(ctx context.Context, name string) (CreatePermissionRow, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 }
 

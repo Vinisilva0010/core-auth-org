@@ -7,43 +7,66 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createPasswordReset = `-- name: CreatePasswordReset :one
+INSERT INTO password_resets (user_id, token, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, token, used, expires_at, created_at
+`
+
+type CreatePasswordResetParams struct {
+	UserID    uuid.UUID
+	Token     string
+	ExpiresAt time.Time
+}
+
+func (q *Queries) CreatePasswordReset(ctx context.Context, arg CreatePasswordResetParams) (PasswordReset, error) {
+	row := q.db.QueryRow(ctx, createPasswordReset, arg.UserID, arg.Token, arg.ExpiresAt)
+	var i PasswordReset
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Token,
+		&i.Used,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (
-    user_id, refresh_token, user_agent, ip_address, expires_at
-) VALUES (
-    $1, $2, $3, $4, $5
-)
-RETURNING id, user_id, refresh_token, user_agent, ip_address, is_revoked, expires_at, created_at
+INSERT INTO sessions (user_id, refresh_token, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, refresh_token, is_revoked, expires_at, created_at
 `
 
 type CreateSessionParams struct {
 	UserID       uuid.UUID
 	RefreshToken string
-	UserAgent    pgtype.Text
-	IpAddress    pgtype.Text
 	ExpiresAt    pgtype.Timestamptz
 }
 
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
-	row := q.db.QueryRow(ctx, createSession,
-		arg.UserID,
-		arg.RefreshToken,
-		arg.UserAgent,
-		arg.IpAddress,
-		arg.ExpiresAt,
-	)
-	var i Session
+type CreateSessionRow struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	RefreshToken string
+	IsRevoked    bool
+	ExpiresAt    pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error) {
+	row := q.db.QueryRow(ctx, createSession, arg.UserID, arg.RefreshToken, arg.ExpiresAt)
+	var i CreateSessionRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.RefreshToken,
-		&i.UserAgent,
-		&i.IpAddress,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -51,57 +74,84 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
-const getSession = `-- name: GetSession :one
-SELECT id, user_id, refresh_token, user_agent, ip_address, is_revoked, expires_at, created_at
-FROM sessions
-WHERE id = $1 LIMIT 1
+const getPasswordResetByToken = `-- name: GetPasswordResetByToken :one
+SELECT id, user_id, token, used, expires_at, created_at
+FROM password_resets
+WHERE token = $1 LIMIT 1
 `
 
-func (q *Queries) GetSession(ctx context.Context, id uuid.UUID) (Session, error) {
-	row := q.db.QueryRow(ctx, getSession, id)
-	var i Session
+func (q *Queries) GetPasswordResetByToken(ctx context.Context, token string) (PasswordReset, error) {
+	row := q.db.QueryRow(ctx, getPasswordResetByToken, token)
+	var i PasswordReset
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.RefreshToken,
-		&i.UserAgent,
-		&i.IpAddress,
-		&i.IsRevoked,
+		&i.Token,
+		&i.Used,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
-const getSessionByRefreshToken = `-- name: GetSessionByRefreshToken :one
-SELECT id, user_id, refresh_token, user_agent, ip_address, is_revoked, expires_at, created_at
+const getSessionByToken = `-- name: GetSessionByToken :one
+SELECT id, user_id, refresh_token, is_revoked, expires_at, created_at
 FROM sessions
 WHERE refresh_token = $1 LIMIT 1
 `
 
-func (q *Queries) GetSessionByRefreshToken(ctx context.Context, refreshToken string) (Session, error) {
-	row := q.db.QueryRow(ctx, getSessionByRefreshToken, refreshToken)
-	var i Session
+type GetSessionByTokenRow struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	RefreshToken string
+	IsRevoked    bool
+	ExpiresAt    pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetSessionByToken(ctx context.Context, refreshToken string) (GetSessionByTokenRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByToken, refreshToken)
+	var i GetSessionByTokenRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.RefreshToken,
-		&i.UserAgent,
-		&i.IpAddress,
 		&i.IsRevoked,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const markPasswordResetUsed = `-- name: MarkPasswordResetUsed :exec
+UPDATE password_resets
+SET used = TRUE
+WHERE id = $1
+`
+
+func (q *Queries) MarkPasswordResetUsed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markPasswordResetUsed, id)
+	return err
+}
+
+const revokeAllUserSessions = `-- name: RevokeAllUserSessions :exec
+UPDATE sessions
+SET is_revoked = TRUE
+WHERE user_id = $1
+`
+
+func (q *Queries) RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, revokeAllUserSessions, userID)
+	return err
 }
 
 const revokeSession = `-- name: RevokeSession :exec
 UPDATE sessions
 SET is_revoked = TRUE
-WHERE refresh_token = $1
+WHERE id = $1
 `
 
-func (q *Queries) RevokeSession(ctx context.Context, refreshToken string) error {
-	_, err := q.db.Exec(ctx, revokeSession, refreshToken)
+func (q *Queries) RevokeSession(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, revokeSession, id)
 	return err
 }

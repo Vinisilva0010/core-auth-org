@@ -11,3 +11,14 @@ VALUES ($1, $2);
 SELECT id, name, slug, created_at, updated_at
 FROM organizations
 WHERE id = $1 LIMIT 1;
+
+-- name: CreateOrganizationUnit :one
+INSERT INTO organization_units (organization_id, name)
+VALUES ($1, $2)
+RETURNING id, organization_id, name, created_at;
+
+-- name: ListOrganizationUnits :many
+SELECT id, organization_id, name, created_at
+FROM organization_units
+WHERE organization_id = $1
+ORDER BY name;

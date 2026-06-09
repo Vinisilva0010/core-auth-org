@@ -60,3 +60,39 @@ func (h *RBACHandler) AssignRole(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type createPermissionRequest struct {
+	Name string `json:"name"`
+}
+
+func (h *RBACHandler) CreatePermission(w http.ResponseWriter, r *http.Request) {
+	var req createPermissionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		server.Error(w, http.StatusBadRequest, "payload inválido")
+		return
+	}
+	perm, err := h.rbacService.CreatePermission(r.Context(), req.Name)
+	if err != nil {
+		server.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	server.JSON(w, http.StatusCreated, perm)
+}
+
+type assignPermissionRequest struct {
+	RoleID       uuid.UUID `json:"role_id"`
+	PermissionID uuid.UUID `json:"permission_id"`
+}
+
+func (h *RBACHandler) AssignPermission(w http.ResponseWriter, r *http.Request) {
+	var req assignPermissionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		server.Error(w, http.StatusBadRequest, "payload inválido")
+		return
+	}
+	if err := h.rbacService.AssignPermissionToRole(r.Context(), req.RoleID, req.PermissionID); err != nil {
+		server.Error(w, http.StatusInternalServerError, "falha ao atribuir permissão")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

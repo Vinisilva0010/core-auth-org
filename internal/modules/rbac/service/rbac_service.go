@@ -45,8 +45,30 @@ func (s *RBACService) CreateRole(ctx context.Context, orgID uuid.UUID, name, des
 
 func (s *RBACService) AssignRole(ctx context.Context, orgID, userID, roleID uuid.UUID) error {
 	return s.repo.AssignRoleToMember(ctx, repository.AssignRoleToMemberParams{
-		RoleID:         pgtype.UUID{Bytes: roleID, Valid: true},
+		RoleID:         roleID,
 		OrganizationID: orgID,
 		UserID:         userID,
+	})
+}
+
+func (s *RBACService) CreatePermission(ctx context.Context, name string) (*domain.Permission, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, domain.ErrInvalidPermData
+	}
+	dbPerm, err := s.repo.CreatePermission(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.Permission{
+		ID:   dbPerm.ID,
+		Name: dbPerm.Name,
+	}, nil
+}
+
+func (s *RBACService) AssignPermissionToRole(ctx context.Context, roleID, permID uuid.UUID) error {
+	return s.repo.AssignPermissionToRole(ctx, repository.AssignPermissionToRoleParams{
+		RoleID:       roleID,
+		PermissionID: permID,
 	})
 }

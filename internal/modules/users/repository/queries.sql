@@ -14,3 +14,7 @@ WHERE email = $1 LIMIT 1;
 SELECT id, email, password_hash, is_active, created_at, updated_at
 FROM users
 WHERE id = $1 LIMIT 1;
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET password_hash = $2, updated_at = NOW()
+WHERE id = $1;

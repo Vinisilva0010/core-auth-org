@@ -2,59 +2,62 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"time"
 
-	"core-auth-org/internal/modules/auth/domain"
-	authRepo "core-auth-org/internal/modules/auth/repository"
+	"core-auth-org/internal/modules/auth/repository"
 	usersRepo "core-auth-org/internal/modules/users/repository"
-	"core-auth-org/internal/platform/token"
 
-	"github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	ErrInvalidCredentials = errors.New("credenciais inválidas")
+	ErrSessionInvalid     = errors.New("sessão inválida ou expirada")
+	ErrInvalidToken       = errors.New("token inválido ou expirado")
+)
+
 type AuthService struct {
-	authRepo  authRepo.Querier
+	authRepo  repository.Querier
 	userRepo  usersRepo.Querier
 	jwtSecret string
 }
 
-func NewAuthService(ar authRepo.Querier, ur usersRepo.Querier, secret string) *AuthService {
-	return &AuthService{
-		authRepo:  ar,
-		userRepo:  ur,
-		jwtSecret: secret,
-	}
+func NewAuthService(ar repository.Querier, ur usersRepo.Querier, secret string) *AuthService {
+	return &AuthService{authRepo: ar, userRepo: ur, jwtSecret: secret}
 }
 
-func (s *AuthService) Login(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+func (s *AuthService) Login(ctx context.Context, email, password string) (string, string, error) {
 	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
-		return "", "", domain.ErrInvalidCredentials
-	}
-
-	if !user.IsActive {
-		return "", "", domain.ErrInvalidCredentials
+		return "", "", ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", "", domain.ErrInvalidCredentials
+		return "", "", ErrInvalidCredentials
 	}
 
-	accessToken, err := token.Generate(user.ID, s.jwtSecret, 15*time.Minute)
-	if err != nil {
-		return "", "", err
-	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID.String(),
+		"exp":     time.Now().Add(15 * time.Minute).Unix(),
+	})
+	accessToken, _ := token.SignedString([]byte(s.jwtSecret))
 
-	refreshToken := uuid.NewString()
+	b := make([]byte, 32)
+	rand.Read(b)
+	refreshToken := base64.URLEncoding.EncodeToString(b)
+	refreshExp := time.Now().Add(7 * 24 * time.Hour)
 
-	_, err = s.authRepo.CreateSession(ctx, authRepo.CreateSessionParams{
+	// SESSÃO: Usa pgtype.Timestamptz exigido pelo compilador
+	_, err = s.authRepo.CreateSession(ctx, repository.CreateSessionParams{
 		UserID:       user.ID,
 		RefreshToken: refreshToken,
-		UserAgent:    pgtype.Text{String: userAgent, Valid: userAgent != ""},
-		IpAddress:    pgtype.Text{String: ipAddress, Valid: ipAddress != ""},
-		ExpiresAt:    pgtype.Timestamptz{Time: time.Now().Add(7 * 24 * time.Hour), Valid: true},
+		ExpiresAt:    pgtype.Timestamptz{Time: refreshExp, Valid: true},
 	})
 	if err != nil {
 		return "", "", err
@@ -63,31 +66,89 @@ func (s *AuthService) Login(ctx context.Context, email, password, ipAddress, use
 	return accessToken, refreshToken, nil
 }
 
-// RefreshToken valida a sessão no banco e emite um novo Access Token de 15 minutos.
-func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (string, error) {
-	session, err := s.authRepo.GetSessionByRefreshToken(ctx, refreshToken)
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+	session, err := s.authRepo.GetSessionByToken(ctx, refreshToken)
+	if err != nil || session.IsRevoked || session.ExpiresAt.Time.Before(time.Now()) {
+		return "", "", ErrSessionInvalid
+	}
+
+	_ = s.authRepo.RevokeSession(ctx, session.ID)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": session.UserID.String(),
+		"exp":     time.Now().Add(15 * time.Minute).Unix(),
+	})
+	newAccessToken, _ := token.SignedString([]byte(s.jwtSecret))
+
+	b := make([]byte, 32)
+	rand.Read(b)
+	newRefreshToken := base64.URLEncoding.EncodeToString(b)
+	refreshExp := time.Now().Add(7 * 24 * time.Hour)
+
+	// SESSÃO: Usa pgtype.Timestamptz exigido pelo compilador
+	_, err = s.authRepo.CreateSession(ctx, repository.CreateSessionParams{
+		UserID:       session.UserID,
+		RefreshToken: newRefreshToken,
+		ExpiresAt:    pgtype.Timestamptz{Time: refreshExp, Valid: true},
+	})
+
+	return newAccessToken, newRefreshToken, err
+}
+
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
+	session, err := s.authRepo.GetSessionByToken(ctx, refreshToken)
 	if err != nil {
-		return "", domain.ErrInvalidCredentials
+		return nil
+	}
+	return s.authRepo.RevokeSession(ctx, session.ID)
+}
+
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) (string, error) {
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return "", nil 
 	}
 
-	if session.IsRevoked {
-		return "", domain.ErrInvalidCredentials
-	}
+	b := make([]byte, 32)
+	rand.Read(b)
+	resetToken := hex.EncodeToString(b)
+	exp := time.Now().Add(1 * time.Hour)
 
-	// Lendo a propriedade .Time de dentro do pgtype para validar a expiração
-	if time.Now().After(session.ExpiresAt.Time) {
-		return "", domain.ErrInvalidCredentials
-	}
-
-	accessToken, err := token.Generate(session.UserID, s.jwtSecret, 15*time.Minute)
+	// RECUPERAÇÃO DE SENHA: Usa time.Time nativo exigido pelo compilador
+	_, err = s.authRepo.CreatePasswordReset(ctx, repository.CreatePasswordResetParams{
+		UserID:    user.ID,
+		Token:     resetToken,
+		ExpiresAt: exp,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	return accessToken, nil
+	return resetToken, nil
 }
 
-// Logout invalida o Refresh Token no banco, matando a sessão.
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
-	return s.authRepo.RevokeSession(ctx, refreshToken)
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	resetReq, err := s.authRepo.GetPasswordResetByToken(ctx, token)
+	// RECUPERAÇÃO DE SENHA: Usa time.Time nativo exigido pelo compilador
+	if err != nil || resetReq.Used || resetReq.ExpiresAt.Before(time.Now()) {
+		return ErrInvalidToken
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	err = s.userRepo.UpdateUserPassword(ctx, usersRepo.UpdateUserPasswordParams{
+		ID:           resetReq.UserID,
+		PasswordHash: string(hash),
+	})
+	if err != nil {
+		return err
+	}
+
+	_ = s.authRepo.MarkPasswordResetUsed(ctx, resetReq.ID)
+	_ = s.authRepo.RevokeAllUserSessions(ctx, resetReq.UserID)
+
+	return nil
 }
