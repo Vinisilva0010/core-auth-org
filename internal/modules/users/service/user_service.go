@@ -11,7 +11,7 @@ import (
 )
 
 type UserService struct {
-	repo repository.Querier // Usamos a interface gerada pelo sqlc para facilitar mocks no futuro
+	repo repository.Querier
 }
 
 func NewUserService(repo repository.Querier) *UserService {
@@ -19,7 +19,6 @@ func NewUserService(repo repository.Querier) *UserService {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, email, password string) (*domain.User, error) {
-	// 1. Validação de domínio
 	if _, err := mail.ParseAddress(email); err != nil {
 		return nil, domain.ErrInvalidEmail
 	}
@@ -28,20 +27,16 @@ func (s *UserService) CreateUser(ctx context.Context, email, password string) (*
 		return nil, domain.ErrPasswordTooShort
 	}
 
-	// 2. Regra de negócio: evitar duplicidade
-	// Verificamos se já existe. O repo retorna erro se não achar, então err == nil significa que achou.
 	_, err := s.repo.GetUserByEmail(ctx, email)
 	if err == nil {
 		return nil, domain.ErrEmailAlreadyInUse
 	}
 
-	// 3. Segurança: Hash da senha
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. Persistência
 	dbUser, err := s.repo.CreateUser(ctx, repository.CreateUserParams{
 		Email:        email,
 		PasswordHash: string(hash),
@@ -50,13 +45,12 @@ func (s *UserService) CreateUser(ctx context.Context, email, password string) (*
 		return nil, err
 	}
 
-	// 5. Retorna a entidade de domínio
 	return &domain.User{
 		ID:           dbUser.ID,
 		Email:        dbUser.Email,
 		PasswordHash: dbUser.PasswordHash,
 		IsActive:     dbUser.IsActive,
-		CreatedAt:    dbUser.CreatedAt,
-		UpdatedAt:    dbUser.UpdatedAt,
+		CreatedAt:    dbUser.CreatedAt.Time,
+		UpdatedAt:    dbUser.UpdatedAt.Time,
 	}, nil
 }
